@@ -28,6 +28,7 @@ def main(config,
          K,
          CROP_SIZE, #Frist cropped,
          IM_SIZE, #And, Resized
+         Z_RANGE, # z value for gamma augmentation
          SAVE_PERIOD,
          SUMMARY_PERIOD):
     np.random.seed(RANDOM_SEED)
@@ -35,7 +36,7 @@ def main(config,
 
     # >>>>>>> DATASET
     cityspaces = CitySpaces()
-    ims,lbs = cityspaces.build_queue(target='train',crop=CROP_SIZE,resize=IM_SIZE,batch_size=BATCH_SIZE,num_threads=4)
+    ims,lbs = cityspaces.build_queue(target='train',crop=CROP_SIZE,resize=IM_SIZE,z_range=Z_RANGE,batch_size=BATCH_SIZE,num_threads=4)
     """
     valid_ims,valid_lbs = cityspaces.build_queue(target='val')
     """
@@ -226,8 +227,9 @@ def get_default_param():
         'DECAY_STAIRCASE' : False,
 
         'K':512*64,
-        'CROP_SIZE':(256,512),
-        'IM_SIZE' :(256,512), #Prediction is made at 1 res.
+        'CROP_SIZE':(512,1024),
+        'IM_SIZE' :(256,512), #Prediction is made at 1/2 scale.
+        'Z_RANGE':0.05,
 
         'SUMMARY_PERIOD' : 10,
         'SAVE_PERIOD' : 10000,

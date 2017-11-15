@@ -40,7 +40,7 @@ class CitySpaces():
         self.image_size = image_size
         self.labels = labels
 
-    def build_queue(self,target='train',crop=(128,256),resize=(128,256),batch_size=2,num_threads=1):
+    def build_queue(self,target='train',crop=(128,256),resize=(128,256),z_range=0.05,batch_size=2,num_threads=1):
         with tf.device('/cpu'):
             im_name,l_name = tf.train.slice_input_producer([self.images[target],self.labels[target]],num_epochs=None,shuffle=True)
             binary = tf.read_file(im_name)
@@ -58,7 +58,7 @@ class CitySpaces():
                 pp = tf.image.random_flip_left_right(resized_im)
 
                 # Gamma augmentation; formula (14)
-                z = tf.random_uniform([],minval=-0.35,maxval=0.35)
+                z = tf.random_uniform([],minval=-1.*z_range,maxval=z_range)
                 gamma = tf.log(0.5+2**(-0.5)*z) / tf.log(0.5-2**(-0.5)*z)
                 pp = (tf.cast(pp,tf.float32) / 255.0)**(gamma)
             else :
