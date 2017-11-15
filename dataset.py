@@ -55,7 +55,13 @@ class CitySpaces():
             resized_im = tf.image.resize_images(cropped_im,resize)
             resized_label = tf.image.resize_images(cropped_label,resize,tf.image.ResizeMethod.NEAREST_NEIGHBOR)
             if( target == 'train' ):
-                pp = tf.image.random_flip_left_right(resized_im)
+                coin = tf.random_uniform([], 0., 1.0)
+                pp = tf.cond(tf.less(coin,.5),
+                             lambda: tf.image.flip_left_right(resized_im),
+                             lambda: resized_im)
+                resized_label = tf.cond(tf.less(coin,.5),
+                                        lambda: tf.image.flip_left_right(resized_label),
+                                        lambda: resized_label)
 
                 # Gamma augmentation; formula (14)
                 z = tf.random_uniform([],minval=-1.*z_range,maxval=z_range)
