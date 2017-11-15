@@ -76,7 +76,7 @@ def main(config,
         # TODO: Actually, better way exist. (this method is too slow)
         def _py_draw_plot(label):
             fig, ax = plt.subplots()
-            img = ax.imshow(label, interpolation='none', cmap='tab20')
+            img = ax.imshow(label, interpolation='none', cmap='tab20',vmin=0, vmax=19)
             ax.set_axis_off()
             buf = io.BytesIO()
             fig.savefig(buf, format='png')
