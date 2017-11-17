@@ -1,7 +1,3 @@
-[submodule "commons"]
-	path = commons
-	url = git@github.com:hiwonjoon/tf-boilerplate.git
-	branch = master
 [submodule "cityscapesScripts"]
 	path = cityscapesScripts
 	url = git@github.com:hiwonjoon/cityscapesScripts.git
