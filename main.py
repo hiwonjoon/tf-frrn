@@ -15,6 +15,13 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import io
 
+from cityscapesScripts.cityscapesscripts.helpers import labels as L
+# For Plotting
+color_map = np.zeros((20,3),np.uint8)
+for i in range(19):
+    color_map[i] = L.trainId2label[i].color
+
+
 NUM_CLASSES = 19 + 1
 def main(config,
          RANDOM_SEED,
@@ -36,9 +43,9 @@ def main(config,
 
     # >>>>>>> DATASET
     cityspaces = CitySpaces()
-    ims,lbs = cityspaces.build_queue(target='train',crop=CROP_SIZE,resize=IM_SIZE,z_range=Z_RANGE,batch_size=BATCH_SIZE,num_threads=4)
+    _,ims,lbs = cityspaces.build_queue(target='train',crop=CROP_SIZE,resize=IM_SIZE,z_range=Z_RANGE,batch_size=BATCH_SIZE,num_threads=4)
     """
-    valid_ims,valid_lbs = cityspaces.build_queue(target='val')
+    _,valid_ims,valid_lbs = cityspaces.build_queue(target='val')
     """
     # <<<<<<<
 
@@ -76,7 +83,7 @@ def main(config,
         # TODO: Actually, better way exist. (this method is too slow)
         def _py_draw_plot(label):
             fig, ax = plt.subplots()
-            img = ax.imshow(label, interpolation='none', cmap='tab20',vmin=0, vmax=19)
+            img = ax.imshow(color_map[label])
             ax.set_axis_off()
             buf = io.BytesIO()
             fig.savefig(buf, format='png')
@@ -143,34 +150,33 @@ def main(config,
 
     net.save(sess,LOG_DIR)
 
-"""
 def eval(MODEL,
-         CROP,
-         IM_SIZE,
+         TARGET,
+         BATCH_SIZE,
          **kwargs):
+    if not os.path.exists(os.path.join('results',TARGET)):
+        os.makedirs(os.path.join('results',TARGET))
     # >>>>>>> DATASET
-    image = get_image(num_epochs=1)
-    images = tf.train.batch(
-        [image],
-        batch_size=100,
-        num_threads=1,
-        capacity=100,
-        allow_smaller_final_batch=True)
-    valid_image = get_image(False,num_epochs=1)
-    valid_images = tf.train.batch(
-        [valid_image],
-        batch_size=100,
-        num_threads=1,
-        capacity=100,
-        allow_smaller_final_batch=True)
+    from cityscapesScripts.cityscapesscripts.helpers import labels as L
+    from cityscapesScripts.cityscapesscripts.evaluation import evalPixelLevelSemanticLabeling as E
+    from PIL import Image
+
+    trainId2id = np.zeros((20,),np.uint8)
+    for i in range(19):
+        trainId2id[i] = L.trainId2label[i].id
+    trainId2id[19] = 0
+
+    cityspaces = CitySpaces()
+    scale_factor = np.array(kwargs['CROP_SIZE'])/np.array(kwargs['IM_SIZE'])
+    size = tuple(int(l//s) for (l,s) in zip(cityspaces.image_size,scale_factor))
+    imnames,ims,lbs = cityspaces.build_queue(target=TARGET,crop=cityspaces.image_size,resize=size,z_range=None,batch_size=BATCH_SIZE,num_threads=2)
     # <<<<<<<
 
     # >>>>>>> MODEL
     with tf.variable_scope('net'):
         with tf.variable_scope('params') as params:
             pass
-        x = tf.placeholder(tf.float32,[None,32,32,3])
-        net= VQVAE(None,None,BETA,x,K,D,_cifar10_arch,params,False)
+        net = FRRN(None,None,kwargs['K'],ims,lbs,partial(_arch_type_a,NUM_CLASSES),params,False)
 
     init_op = tf.group(tf.global_variables_initializer(),
                     tf.local_variables_initializer())
@@ -183,34 +189,25 @@ def eval(MODEL,
     sess.run(init_op)
     net.load(sess,MODEL)
 
-
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord,sess=sess)
     try:
-        nlls = []
         while not coord.should_stop():
-            nlls.append(
-                sess.run(net.nll,feed_dict={x:sess.run(valid_images)}))
+            names,preds = sess.run([imnames,net.preds])
+            for name,pred in zip(names,preds):
+                name = os.path.basename(str(name,'utf-8'))
+                im = Image.fromarray(trainId2id[pred])
+                im = im.resize((cityspaces.image_size[1],cityspaces.image_size[0]),
+                               Image.NEAREST)
+                im.save(os.path.join('results',TARGET,name),"PNG")
             print('.', end='', flush=True)
     except tf.errors.OutOfRangeError:
-        nlls = np.concatenate(nlls,axis=0)
-        print(nlls.shape)
-        print('NLL for test set: %f bits/dims'%(np.mean(nlls)))
-
-    try:
-        nlls = []
-        while not coord.should_stop():
-            nlls.append(
-                sess.run(net.nll,feed_dict={x:sess.run(images)}))
-            print('.', end='', flush=True)
-    except tf.errors.OutOfRangeError:
-        nlls = np.concatenate(nlls,axis=0)
-        print(nlls.shape)
-        print('NLL for training set: %f bits/dims'%(np.mean(nlls)))
+        print('Complete')
 
     coord.request_stop()
     coord.join(threads)
-"""
+
+    E.main([TARGET])
 
 def get_default_param():
     from datetime import datetime
@@ -246,4 +243,4 @@ if __name__ == "__main__":
     config.as_matrix = as_matrix
 
     main(config=config,**config)
-    #test(MODEL='models/cifar10/last.ckpt',**config)
+    #eval(MODEL='models/arch_type_a/last.ckpt',TARGET='val',**config)

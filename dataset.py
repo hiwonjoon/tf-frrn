@@ -42,7 +42,11 @@ class CitySpaces():
 
     def build_queue(self,target='train',crop=(128,256),resize=(128,256),z_range=0.05,batch_size=2,num_threads=1):
         with tf.device('/cpu'):
-            im_name,l_name = tf.train.slice_input_producer([self.images[target],self.labels[target]],num_epochs=None,shuffle=True)
+            if( target == 'test' or target == 'val' ):
+                im_name,l_name = tf.train.slice_input_producer([self.images[target],self.labels[target]],num_epochs=1,shuffle=False)
+            else :
+                im_name,l_name = tf.train.slice_input_producer([self.images[target],self.labels[target]],num_epochs=None,shuffle=True)
+
             binary = tf.read_file(im_name)
             image = tf.image.decode_png(binary,channels=3)
             binary = tf.read_file(l_name)
@@ -76,17 +80,18 @@ class CitySpaces():
             resized_label = tf.squeeze(resized_label,axis=2)
 
             # Build task batch
-            x, y = tf.train.batch(
-                [pp, resized_label],
+            imnames, x, y = tf.train.batch(
+                [im_name,pp, resized_label],
                 batch_size=batch_size,
                 num_threads=num_threads,
-                capacity=10*batch_size)
-            return x,y
+                capacity=10*batch_size,
+                allow_smaller_final_batch=True)
+            return imnames ,x,y
 
 if __name__ == "__main__":
     cityspaces = CitySpaces()
 
-    images,labels = cityspaces.build_queue(target='train')
+    imnames, images, labels = cityspaces.build_queue(target='train')
 
     init_op = tf.group(tf.global_variables_initializer(),
                     tf.local_variables_initializer())
@@ -104,8 +109,8 @@ if __name__ == "__main__":
         threads = tf.train.start_queue_runners(coord=coord,sess=sess)
         for _it in tqdm(itertools.count()) : # Slice Input producer will throw OutOfRange exception
             if( coord.should_stop() ): break
-            ims,las = sess.run([images,labels])
-            print(ims.shape,np.min(ims),np.max(ims),las.shape,np.min(las),np.max(las))
+            names,ims,las = sess.run([imnames,images,labels])
+            print(names,ims.shape,np.min(ims),np.max(ims),las.shape,np.min(las),np.max(las))
     except Exception as e:
         coord.request_stop(e)
     finally :
