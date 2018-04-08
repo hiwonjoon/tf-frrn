@@ -119,7 +119,7 @@ class FRRN():
         with tf.variable_scope(param_scope):
              net_spec = arch_fn()
 
-        with tf.variable_scope('forward'):
+        with tf.variable_scope('forward') as forward_scope:
             _t = im
             for block in net_spec:
                 print(_t)
@@ -137,7 +137,14 @@ class FRRN():
         if( is_training ):
             with tf.variable_scope('backward'):
                 optimizer = tf.train.AdamOptimizer(lr)
-                self.train_op= optimizer.minimize(self.loss,global_step=global_step)
+
+                update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS,forward_scope.name)
+                #print('------------batchnorm ops---------------')
+                #for op in update_ops:
+                #    print(update_ops)
+                #print('------------batchnorm ops end---------------')
+                with tf.control_dependencies(update_ops):
+                    self.train_op= optimizer.minimize(self.loss,global_step=global_step)
 
         save_vars = {('train/'+'/'.join(var.name.split('/')[1:])).split(':')[0] : var for var in
                      tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,param_scope.name) }
